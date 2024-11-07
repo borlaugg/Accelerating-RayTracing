@@ -11,15 +11,10 @@
 // along with this software. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
 //==============================================================================================
 
-// #define OMP
-#define CUDA
-// #define NONE
 
 #include "hittable.h"
 #include "material.h"
-#ifdef OMP
 #include "omp.h"
-#endif
 
 
 class camera {
@@ -42,7 +37,6 @@ class camera {
 
         std::cout << "P3\n" << image_width << ' ' << image_height << "\n255\n";
 
-#ifdef OMP
         color* pixel_color = (color*)malloc(image_width*image_height*sizeof(color));
 #pragma omp parallel for firstprivate(image_height, image_width, samples_per_pixel,  max_depth) shared(world,pixel_color)        
         for (int j = 0; j < image_height; j++) {
@@ -60,39 +54,6 @@ class camera {
                 write_color(std::cout, pixel_samples_scale * pixel_color[i + image_width*j]);
             }
         }
-#endif
-#ifdef CUDA
-        for (int j = 0; j < image_height; j++) {
-            std::clog << "\rScanlines remaining: " << (image_height - j) << ' ' << std::flush;
-            for (int i = 0; i < image_width; i++) {
-                for (int sample = 0; sample < samples_per_pixel; sample++) {
-                    ray r = get_ray(i, j);
-                    pixel_color[i + image_width*j] += ray_color(r, max_depth, world);
-                }
-            }
-        }
-
-        for (int j = 0; j < image_height; j++) {
-             for (int i = 0; i < image_width; i++) {
-                write_color(std::cout, pixel_samples_scale * pixel_color[i + image_width*j]);
-            }
-        }
-
-        std::clog << "\rDone.                 \n";
-#endif
-#ifdef NONE
-    for (int j = 0; j < image_height; j++) {
-            std::clog << "\rScanlines remaining: " << (image_height - j) << ' ' << std::flush;
-            for (int i = 0; i < image_width; i++) {
-                color pixel_color(0,0,0);
-                for (int sample = 0; sample < samples_per_pixel; sample++) {
-                    ray r = get_ray(i, j);
-                    pixel_color += ray_color(r, max_depth, world);
-                }
-                write_color(std::cout, pixel_samples_scale * pixel_color);
-            }
-        }
-#endif
         std::clog << "\rDone.                 \n";
     }
 
