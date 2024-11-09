@@ -35,12 +35,12 @@ class camera {
     void render(const hittable& world) {
         initialize();
 
-        std::cout << "P3\n" << image_width << ' ' << image_height << "\n255\n";
+        // std::clog << "P3\n" << image_width << ' ' << image_height << "\n255\n";
 
         color* pixel_color = (color*)malloc(image_width*image_height*sizeof(color));
 #pragma omp parallel for firstprivate(image_height, image_width, samples_per_pixel,  max_depth) shared(world,pixel_color)        
         for (int j = 0; j < image_height; j++) {
-            std::clog << "\rScanlines remaining: " << (image_height - j) << ' ' << std::flush;
+            // std::clog << "\rScanlines remaining: " << (image_height - j) << ' ' << std::flush;
             for (int i = 0; i < image_width; i++) {
                 for (int sample = 0; sample < samples_per_pixel; sample++) {
                     ray r = get_ray(i, j);

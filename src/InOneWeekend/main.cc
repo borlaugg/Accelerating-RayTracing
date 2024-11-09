@@ -13,6 +13,7 @@
 
 #include "camera.h"
 #include "hittable.h"
+#include <time.h>
 #include "hittable_list.h"
 #include "material.h"
 #include "sphere.h"
@@ -77,5 +78,11 @@ int main() {
     cam.defocus_angle = 0.6;
     cam.focus_dist    = 10.0;
 
+    clock_t start, stop;
+    start = clock();
     cam.render(world);
+    stop = clock();
+    double timer_seconds = ((double)(stop - start)) / CLOCKS_PER_SEC;
+    std::cerr << "took " << timer_seconds << " seconds.\n";
+
 }
