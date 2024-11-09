@@ -14,8 +14,6 @@
 
 #include "hittable.h"
 #include "material.h"
-#include "omp.h"
-
 
 class camera {
   public:
@@ -32,15 +30,13 @@ class camera {
     double defocus_angle = 0;  // Variation angle of rays through each pixel
     double focus_dist = 10;    // Distance from camera lookfrom point to plane of perfect focus
 
-    void render(const hittable& world) {
+    __device__ void render(const hittable& world, color* pixel_color) {
         initialize();
 
-        std::cout << "P3\n" << image_width << ' ' << image_height << "\n255\n";
+        // std::cout << "P3\n" << image_width << ' ' << image_height << "\n255\n";
 
-        color* pixel_color = (color*)malloc(image_width*image_height*sizeof(color));
-#pragma omp parallel for firstprivate(image_height, image_width, samples_per_pixel,  max_depth) shared(world,pixel_color)        
         for (int j = 0; j < image_height; j++) {
-            std::clog << "\rScanlines remaining: " << (image_height - j) << ' ' << std::flush;
+            // std::clog << "\rScanlines remaining: " << (image_height - j) << ' ' << std::flush;
             for (int i = 0; i < image_width; i++) {
                 for (int sample = 0; sample < samples_per_pixel; sample++) {
                     ray r = get_ray(i, j);
@@ -48,14 +44,9 @@ class camera {
                 }
             }
         }
-
-        for (int j = 0; j < image_height; j++) {
-             for (int i = 0; i < image_width; i++) {
-                write_color(std::cout, pixel_samples_scale * pixel_color[i + image_width*j]);
-            }
-        }
-        std::clog << "\rDone.                 \n";
     }
+
+    
 
   private:
     int    image_height;         // Rendered image height
@@ -68,7 +59,7 @@ class camera {
     vec3   defocus_disk_u;       // Defocus disk horizontal radius
     vec3   defocus_disk_v;       // Defocus disk vertical radius
 
-    void initialize() {
+    __device__ void initialize() {
         image_height = int(image_width / aspect_ratio);
         image_height = (image_height < 1) ? 1 : image_height;
 
@@ -105,7 +96,7 @@ class camera {
         defocus_disk_v = v * defocus_radius;
     }
 
-    ray get_ray(int i, int j) const {
+    __device__ ray get_ray(int i, int j) const {
         // Construct a camera ray originating from the defocus disk and directed at a randomly
         // sampled point around the pixel location i, j.
 
@@ -136,7 +127,7 @@ class camera {
         return center + (p[0] * defocus_disk_u) + (p[1] * defocus_disk_v);
     }
 
-    color ray_color(const ray& r, int depth, const hittable& world) const {
+    __device__ color ray_color(const ray& r, int depth, const hittable& world) const {
         // If we've exceeded the ray bounce limit, no more light is gathered.
         if (depth <= 0)
             return color(0,0,0);
