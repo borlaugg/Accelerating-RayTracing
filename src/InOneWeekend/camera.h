@@ -54,7 +54,7 @@ class camera {
                 write_color(std::cout, pixel_samples_scale * pixel_color[i + image_width*j]);
             }
         }
-        std::clog << "\rDone.                 \n";
+        // std::clog << "\rDone.                 \n";
     }
 
   private:

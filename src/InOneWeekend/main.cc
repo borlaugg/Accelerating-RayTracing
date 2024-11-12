@@ -80,9 +80,9 @@ int main() {
 
     clock_t start, stop;
     start = clock();
-    cam.render(world);
+    cam.render(world); 
     stop = clock();
     double timer_seconds = ((double)(stop - start)) / CLOCKS_PER_SEC;
-    std::cerr << timer_seconds << " seconds.\n";
+    std::cerr << timer_seconds << "\n";
 
 }
