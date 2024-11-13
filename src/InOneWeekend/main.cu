@@ -149,11 +149,9 @@ int main() {
     int nx = 1200;
     int ny = 675;
     int ns = 10;
-    int tx = 8;
-    int ty = 8;
+    int tx = 5;
+    int ty = 5;
 
-    std::cerr << "Rendering a " << nx << "x" << ny << " image with " << ns << " samples per pixel ";
-    std::cerr << "in " << tx << "x" << ty << " blocks.\n";
 
     int num_pixels = nx*ny;
     size_t fb_size = num_pixels*sizeof(vec3);
@@ -198,7 +196,7 @@ int main() {
     checkCudaErrors(cudaDeviceSynchronize());
     stop = clock();
     double timer_seconds = ((double)(stop - start)) / CLOCKS_PER_SEC;
-    std::cerr << "took " << timer_seconds << " seconds.\n";
+    // std::cerr << "took " << timer_seconds << " seconds.\n";
 
     // Output FB as Image
     std::cout << "P3\n" << nx << " " << ny << "\n255\n";
