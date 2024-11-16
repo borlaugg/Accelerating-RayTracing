@@ -28,7 +28,6 @@ __global__ void render(const hittable* world, color *pixel_color, camera *cam, c
         return;
 
     curand_init(1947 + pixel_index, 0, 0, &rand_state[pixel_index]);
-    __syncthreads();
 
     curandState local_rand_state = rand_state[pixel_index];
     
