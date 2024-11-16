@@ -13,23 +13,23 @@ class interval {
   public:
     double min, max;
 
-    interval() : min(+infinity), max(-infinity) {} // Default interval is empty
+    __device__ __host__ interval() : min(+infinity), max(-infinity) {} // Default interval is empty
 
-    interval(double min, double max) : min(min), max(max) {}
+    __device__ __host__ interval(double min, double max) : min(min), max(max) {}
 
-    double size() const {
+    __device__ __host__ double size() const {
         return max - min;
     }
 
-    bool contains(double x) const {
+    __device__ __host__ bool contains(double x) const {
         return min <= x && x <= max;
     }
 
-    bool surrounds(double x) const {
+    __device__ __host__ bool surrounds(double x) const {
         return min < x && x < max;
     }
 
-    double clamp(double x) const {
+    __device__ __host__ double clamp(double x) const {
         if (x < min) return min;
         if (x > max) return max;
         return x;

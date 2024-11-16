@@ -18,8 +18,8 @@ class material {
   public:
     virtual ~material() = default;
 
-    virtual bool scatter(
-        const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered
+    __device__ virtual bool scatter(
+        const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered, curandState* state
     ) const {
         return false;
     }
@@ -30,9 +30,9 @@ class lambertian : public material {
   public:
     lambertian(const color& albedo) : albedo(albedo) {}
 
-    bool scatter(const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered)
+    __device__ bool scatter(const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered, curandState* state)
     const override {
-        auto scatter_direction = rec.normal + random_unit_vector();
+        auto scatter_direction = rec.normal + random_unit_vector(state);
 
         // Catch degenerate scatter direction
         if (scatter_direction.near_zero())
@@ -52,10 +52,10 @@ class metal : public material {
   public:
     metal(const color& albedo, double fuzz) : albedo(albedo), fuzz(fuzz < 1 ? fuzz : 1) {}
 
-    bool scatter(const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered)
+    __device__ bool scatter(const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered, curandState* state)
     const override {
         vec3 reflected = reflect(r_in.direction(), rec.normal);
-        reflected = unit_vector(reflected) + (fuzz * random_unit_vector());
+        reflected = unit_vector(reflected) + (fuzz * random_unit_vector(state));
         scattered = ray(rec.p, reflected);
         attenuation = albedo;
         return (dot(scattered.direction(), rec.normal) > 0);
@@ -71,7 +71,7 @@ class dielectric : public material {
   public:
     dielectric(double refraction_index) : refraction_index(refraction_index) {}
 
-    bool scatter(const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered)
+    __device__ bool scatter(const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered, curandState* state)
     const override {
         attenuation = color(1.0, 1.0, 1.0);
         double ri = rec.front_face ? (1.0/refraction_index) : refraction_index;
@@ -83,7 +83,7 @@ class dielectric : public material {
         bool cannot_refract = ri * sin_theta > 1.0;
         vec3 direction;
 
-        if (cannot_refract || reflectance(cos_theta, ri) > random_double())
+        if (cannot_refract || reflectance(cos_theta, ri) > random_double(state))
             direction = reflect(unit_direction, rec.normal);
         else
             direction = refract(unit_direction, rec.normal, ri);
@@ -97,7 +97,7 @@ class dielectric : public material {
     // the refractive index of the enclosing media
     double refraction_index;
 
-    static double reflectance(double cosine, double refraction_index) {
+    __device__ __host__ static double reflectance(double cosine, double refraction_index) {
         // Use Schlick's approximation for reflectance.
         auto r0 = (1 - refraction_index) / (1 + refraction_index);
         r0 = r0*r0;
