@@ -145,13 +145,18 @@ __global__ void free_world(hitable **d_list, hitable **d_world, camera **d_camer
     delete *d_camera;
 }
 
-int main() {
-    int nx = 1200;
-    int ny = 675;
+int main(int argc, char **argv) {
+    if (argc < 4){
+        printf("Format : ./main nx tx ty\n");
+        return 0;
+    }
+    
+    double aspect_ratio = 16.0 / 9.0;
+    int nx = argv[1];
+    int ny = int(nx / aspect_ratio);
     int ns = 10;
-    int tx = 5;
-    int ty = 5;
-
+    int tx = argv[2];
+    int ty = argv[3];
 
     int num_pixels = nx*ny;
     size_t fb_size = num_pixels*sizeof(vec3);
