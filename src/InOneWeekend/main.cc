@@ -1,4 +1,4 @@
-//==============================================================================================
+//ƒ==============================================================================================
 // Originally written in 2016 by Peter Shirley <ptrshrl@gmail.com>
 //
 // To the extent possible under law, the author(s) have dedicated all copyright and related and
@@ -66,7 +66,7 @@ int main() {
     camera cam;
 
     cam.aspect_ratio      = 16.0 / 9.0;
-    cam.image_width       = 1200;
+    cam.image_width       = 1920;
     cam.samples_per_pixel = 10;
     cam.max_depth         = 20;
 
