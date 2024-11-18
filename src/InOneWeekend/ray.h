@@ -16,6 +16,10 @@
 
 class ray {
   public:
+
+    point3 orig;
+    vec3 dir;
+    
     __device__ __host__ ray() {}
 
     __device__ __host__ ray(const point3& origin, const vec3& direction) : orig(origin), dir(direction) {}
@@ -28,8 +32,7 @@ class ray {
     }
 
   private:
-    point3 orig;
-    vec3 dir;
+    
 };
 
 

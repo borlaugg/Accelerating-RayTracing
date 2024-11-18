@@ -35,28 +35,31 @@ class hittable_list : public hittable {
         }
     }
 
-    void add(hittable* object) {
+    __device__ __host__ void add(hittable* object) {
         objects[tail_index] = object;
         // printf("Added this mf : %p", object);
         tail_index ++;
     }
 
     int size() {
-        return sizeof(objects) / sizeof(objects[0]);
+        return tail_index;
     }
 
     __device__ bool hit(const ray& r, interval ray_t, hit_record& rec) const override {
+        printf("Here");
         hit_record temp_rec;
         bool hit_anything = false;
         auto closest_so_far = ray_t.max;
 
         for (const auto& object: objects) {
             if (object->hit(r, interval(ray_t.min, closest_so_far), temp_rec)) {
+                printf("Here2");
                 hit_anything = true;
                 closest_so_far = temp_rec.t;
                 rec = temp_rec;
             }
         }
+        printf("%d\n", hit_anything);
         return hit_anything;
     }
 };

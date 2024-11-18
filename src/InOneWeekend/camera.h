@@ -13,6 +13,7 @@
 
 
 #include "hittable.h"
+#include "hittable_list.h"
 #include "material.h"
 
 
@@ -33,7 +34,7 @@ class camera {
     double defocus_angle = 0;  // Variation angle of rays through each pixel
     double focus_dist = 10;    // Distance from camera lookfrom point to plane of perfect focus
 
-    void initialize() {             // Made this function public so that it can be called before render is called.
+    __device__ __host__ void initialize() {             // Made this function public so that it can be called before render is called.
         image_height = int(image_width / aspect_ratio);
         image_height = (image_height < 1) ? 1 : image_height;
 
@@ -101,14 +102,16 @@ class camera {
         return center + (p[0] * defocus_disk_u) + (p[1] * defocus_disk_v);
     }
 
-    __device__ color ray_color(const ray& r, int depth, const hittable& world, curandState* state) const {
+    __device__ color ray_color(const ray& r, int depth, const hittable_list& world, curandState* state) const {
         // If we've exceeded the ray bounce limit, no more light is gathered.
         if (depth <= 0)
             return color(0,0,0);
 
         hit_record rec;
-
+        interval(0.001, infinity);
+        printf("here");
         if (world.hit(r, interval(0.001, infinity), rec)) {
+            // printf("Here2");
             ray scattered;
             color attenuation;
             if (rec.mat->scatter(r, rec, attenuation, scattered, state))

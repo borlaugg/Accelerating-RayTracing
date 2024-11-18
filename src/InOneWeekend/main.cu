@@ -10,7 +10,8 @@
 //==============================================================================================
 
 #include "rtweekend.h"
-
+#include <curand_kernel.h>
+#include <curand.h>
 #include "camera.h"
 #include "hittable.h"
 #include <time.h>
@@ -18,8 +19,42 @@
 #include "material.h"
 #include "sphere.h"
 
+// typedef cudaError cudaError_t;
+
+#define checkCudaErrors(val) check_cuda( (val), #val, __FILE__, __LINE__ )
+
+void check_cuda(cudaError_t result, char const *const func, const char *const file, int const line) {
+    if (result) {
+        std::cerr << "CUDA error = " << static_cast<unsigned int>(result) << " at " <<
+            file << ":" << line << " '" << func << "' \n";
+        // Make sure we call CUDA Device Reset before exiting
+        cudaDeviceReset();
+        exit(99);
+    }
+}
+
+__global__ void create_world(hittable_list* world, hittable** world_dummy) {
+    for (int i =0; i < (1 + 22*22 + 3); i ++){
+        world->add(world_dummy[i]);
+    }
+}
+
+__global__ void render_init(camera *cam, curandState *rand_state) {
+    int i = (blockIdx.x * blockDim.x + threadIdx.x);
+    int j = (blockIdx.y * blockDim.y + threadIdx.y);
+    int pixel_index = i + (*cam).image_width*j;
+
+    // printf("%d\n", pixel_index);
+
+    if (i >= (*cam).image_width || j >= (*cam).image_height)
+        return;
+
+    curand_init(1984 + pixel_index, 0, 0, &rand_state[pixel_index]);
+    // printf("Done");
+}
+
 // Code that will be run on the GPU
-__global__ void render(const hittable* world, color *pixel_color, camera *cam, curandState *rand_state) {
+__global__ void render(const hittable_list* world, color *pixel_color, camera *cam, curandState *rand_state) {
     int i = (blockIdx.x * blockDim.x + threadIdx.x);
     int j = (blockIdx.y * blockDim.y + threadIdx.y);
     int pixel_index = i + (*cam).image_width*j;
@@ -27,14 +62,20 @@ __global__ void render(const hittable* world, color *pixel_color, camera *cam, c
     if (i >= (*cam).image_width || j >= (*cam).image_height)
         return;
 
-    curand_init(1947 + pixel_index, 0, 0, &rand_state[pixel_index]);
+    // curand_init(1984 + pixel_index, 0, 0, &rand_state[pixel_index]);
 
     curandState local_rand_state = rand_state[pixel_index];
     
+    // printf("Samples: %d\n", (*cam).samples_per_pixel);
+
     for (int sample = 0; sample < (*cam).samples_per_pixel; sample++) {
         ray r = (*cam).get_ray(i, j, &local_rand_state);
+        // printf("%d %p\n", (*cam).max_depth, &local_rand_state);
         pixel_color[pixel_index] += (*cam).ray_color(r, (*cam).max_depth, *world, &local_rand_state);
+        printf("%f %f %f\n", pixel_color[pixel_index].x(), pixel_color[pixel_index].y(), pixel_color[pixel_index].z());
     }
+    // cudaError_t error = cudaGetLastError();
+    // printf("Error: %s \n", cudaGetErrorString(error));
     
     // __syncthreads();
     
@@ -112,35 +153,56 @@ int main(int argc, char **argv) {
     printf("camera's image width = %d\n", cam.image_width);
     printf("Number of threads per block = %d, %d\n", numThreadsPerBlock_x, numThreadsPerBlock_y);
     
-    // CUDA doesn't have std::rand() therefore we need to define a set of seds
-    curandState *d_rand_state;
-    cudaMalloc((void **)&d_rand_state, cam.image_height * cam.image_height * sizeof(curandState));
-    
     clock_t start, stop;
     start = clock();
     cam.initialize();                                               // Need to call this once before we pass things to the GPU
+    
+    // CUDA doesn't have std::rand() therefore we need to define a set of seds
+    curandState *d_rand_state;
+    printf("%d\n",cam.image_height * cam.image_height);
+    cudaMalloc((void **)&d_rand_state, cam.image_height * cam.image_height * sizeof(curandState));
+    
     color* pixel_color;
     cudaMalloc((void **)&pixel_color, cam.image_width * cam.image_height * sizeof(color));        // We will allocate memory in the GPU for storing the pixel colors
     
     // Allocating appropriate space in GPU
     int num_entries = world.size();
+    // std::cout << num_entries << std::endl;
     hittable_list *d_world;
-    cudaMalloc((void **)&d_world, num_entries * sizeof(hittable));
+    cudaMalloc((void **)&d_world, sizeof(world));
     camera *d_cam;
     cudaMalloc((void **)&d_cam, sizeof(camera));
 
     // Copying relevant data
     cudaMemcpy(d_cam, &cam, sizeof(camera), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_world, &world, num_entries * sizeof(hittable), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_world, &world, sizeof(world), cudaMemcpyHostToDevice);
+
+    hittable* d_world_dummy[num_entries];
+
+    for (int i =0 ; i < num_entries; i ++){
+        cudaMemcpy(d_world_dummy[i], world.objects[i], sizeof(hittable*), cudaMemcpyHostToDevice);
+    }
+
     
+    // hittable_list *h_world_why_not = (hittable_list *)malloc(sizeof(world));
+    // memcpy(h_world_why_not, &world, sizeof(world));
+
+    // printf("%d\n", h_world_why_not->tail_index);
+
     dim3 blocks(cam.image_height/numThreadsPerBlock_x + 1,cam.image_width/numThreadsPerBlock_y + 1);
     dim3 threads(numThreadsPerBlock_x, numThreadsPerBlock_y);
     
+    create_world<<<1, 1>>>(d_world, d_world_dummy);
+    // std::cout << world.tail_index << std::endl;
+    render_init<<<blocks, threads>>>(d_cam, d_rand_state);
+    checkCudaErrors(cudaGetLastError());
+    checkCudaErrors(cudaDeviceSynchronize());
     render<<<blocks, threads>>>(d_world, pixel_color, d_cam, d_rand_state);
-    cudaDeviceSynchronize();
+    checkCudaErrors(cudaGetLastError());
+    checkCudaErrors(cudaDeviceSynchronize());
     stop = clock();
 
-    printf("Rnedingnineign\n");
+    // printf("Rnedingnineign\n");
 
     color* h_pixel_color = (color*)malloc(cam.image_width * cam.image_height * sizeof(color));
     cudaMemcpy(h_pixel_color, pixel_color, cam.image_width * cam.image_height * sizeof(color), cudaMemcpyDeviceToHost);

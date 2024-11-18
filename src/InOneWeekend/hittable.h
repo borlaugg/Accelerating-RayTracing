@@ -22,6 +22,8 @@ class hit_record {
     double t;
     bool front_face;
 
+    __device__ hit_record(){}
+
     __device__ __host__ void set_face_normal(const ray& r, const vec3& outward_normal) {
         // Sets the hit record normal vector.
         // NOTE: the parameter `outward_normal` is assumed to have unit length.
