@@ -35,7 +35,7 @@ class hittable_list : public hittable {
         }
     }
 
-    __device__ __host__ void add(hittable* object) {
+    void add(hittable* object) {
         objects[tail_index] = object;
         // printf("Added this mf : %p", object);
         tail_index ++;

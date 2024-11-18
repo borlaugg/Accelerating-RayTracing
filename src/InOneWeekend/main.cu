@@ -34,9 +34,15 @@ void check_cuda(cudaError_t result, char const *const func, const char *const fi
 }
 
 __global__ void create_world(hittable_list* world, hittable** world_dummy) {
-    for (int i =0; i < (1 + 22*22 + 3); i ++){
-        world->add(world_dummy[i]);
+    printf("Here\n");
+    printf("%d\n", world->tail_index);
+    // world_dummy[0];
+    printf("%p\n", world->objects[0]);
+    printf("%p\n", world_dummy[0]);
+    for (int i =0; i < 488; i++){
+        world->objects[i] = world_dummy[i];
     }
+    
 }
 
 __global__ void render_init(camera *cam, curandState *rand_state) {
@@ -177,12 +183,16 @@ int main(int argc, char **argv) {
     cudaMemcpy(d_cam, &cam, sizeof(camera), cudaMemcpyHostToDevice);
     cudaMemcpy(d_world, &world, sizeof(world), cudaMemcpyHostToDevice);
 
-    hittable* d_world_dummy[num_entries];
+    hittable* d_list_of_spheres[488]; // We need to share this to GPU DRAM. And also each of the objects this list points to
+    cudaMalloc((void **)&d_list_of_spheres, 488*sizeof(hittable*));
+    checkCudaErrors(cudaGetLastError());
 
-    for (int i =0 ; i < num_entries; i ++){
-        cudaMemcpy(d_world_dummy[i], world.objects[i], sizeof(hittable*), cudaMemcpyHostToDevice);
+    for (int i = 0; i < 488; i ++){
+        cudaMalloc((void **)&d_list_of_spheres[i], sizeof(hittable));
+        cudaMemcpy(d_list_of_spheres[i], world.objects[i], sizeof(hittable), cudaMemcpyHostToDevice);
     }
-
+    checkCudaErrors(cudaGetLastError());
+    checkCudaErrors(cudaDeviceSynchronize());
     
     // hittable_list *h_world_why_not = (hittable_list *)malloc(sizeof(world));
     // memcpy(h_world_why_not, &world, sizeof(world));
@@ -192,7 +202,9 @@ int main(int argc, char **argv) {
     dim3 blocks(cam.image_height/numThreadsPerBlock_x + 1,cam.image_width/numThreadsPerBlock_y + 1);
     dim3 threads(numThreadsPerBlock_x, numThreadsPerBlock_y);
     
-    create_world<<<1, 1>>>(d_world, d_world_dummy);
+    create_world<<<1, 1>>>(d_world, d_list_of_spheres);
+    checkCudaErrors(cudaGetLastError());
+    checkCudaErrors(cudaDeviceSynchronize());
     // std::cout << world.tail_index << std::endl;
     render_init<<<blocks, threads>>>(d_cam, d_rand_state);
     checkCudaErrors(cudaGetLastError());
