@@ -18,19 +18,30 @@
 
 class hittable_list : public hittable {
   public:
-    std::vector<shared_ptr<hittable>> objects;
+    hittable* objects[100];               // We will use this array of 100 pointers
+    int tail_index;
 
-    hittable_list() {}
-    hittable_list(shared_ptr<hittable> object) { add(object); }
+    hittable_list() { 
+        tail_index = 0;
+    }
+    hittable_list(hittable* object) { 
+        tail_index = 0;
+        add(object); 
+    }
 
-    void clear() { objects.clear(); }
+    void clear() { 
+        for (int i =0; i < tail_index; i++){
+            objects[i] = nullptr;
+        }
+    }
 
-    void add(shared_ptr<hittable> object) {
-        objects.push_back(object);
+    void add(hittable* object) {
+        objects[tail_index] = object;
+        tail_index ++;
     }
 
     int size() {
-        return objects.size();
+        return sizeof(objects);
     }
 
     __device__ bool hit(const ray& r, interval ray_t, hit_record& rec) const override {
@@ -38,14 +49,13 @@ class hittable_list : public hittable {
         bool hit_anything = false;
         auto closest_so_far = ray_t.max;
 
-        for (const auto& object : objects) {
+        for (const auto& object: objects) {
             if (object->hit(r, interval(ray_t.min, closest_so_far), temp_rec)) {
                 hit_anything = true;
                 closest_so_far = temp_rec.t;
                 rec = temp_rec;
             }
         }
-
         return hit_anything;
     }
 };

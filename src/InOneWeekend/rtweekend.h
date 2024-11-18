@@ -19,8 +19,9 @@
 
 // C++ Std Usings
 
-using std::make_shared;
-using std::shared_ptr;
+// We can't use these on the device : (
+// using std::make_shared;
+// using std::shared_ptr;
 
 
 // Constants
