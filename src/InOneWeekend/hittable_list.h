@@ -18,7 +18,7 @@
 
 class hittable_list : public hittable {
   public:
-    hittable* objects[100];               // We will use this array of 100 pointers
+    hittable* objects[1 + 22 * 22 + 3];               // We will use this array of 100 pointers
     int tail_index;
 
     hittable_list() { 
@@ -37,11 +37,12 @@ class hittable_list : public hittable {
 
     void add(hittable* object) {
         objects[tail_index] = object;
+        // printf("Added this mf : %p", object);
         tail_index ++;
     }
 
     int size() {
-        return sizeof(objects);
+        return sizeof(objects) / sizeof(objects[0]);
     }
 
     __device__ bool hit(const ray& r, interval ray_t, hit_record& rec) const override {

@@ -50,8 +50,6 @@ int main(int argc, char **argv) {
     int numThreadsPerBlock_x = atoi(argv[2]);
     int numThreadsPerBlock_y = atoi(argv[3]);
 
-    return 0;
-
     hittable_list world;
 
     //auto ground_material = make_shared<lambertian>(color(0.5, 0.5, 0.5));
@@ -113,8 +111,6 @@ int main(int argc, char **argv) {
 
     printf("camera's image width = %d\n", cam.image_width);
     printf("Number of threads per block = %d, %d\n", numThreadsPerBlock_x, numThreadsPerBlock_y);
-
-    return 0;
     
     // CUDA doesn't have std::rand() therefore we need to define a set of seds
     curandState *d_rand_state;
@@ -139,10 +135,12 @@ int main(int argc, char **argv) {
     
     dim3 blocks(cam.image_height/numThreadsPerBlock_x + 1,cam.image_width/numThreadsPerBlock_y + 1);
     dim3 threads(numThreadsPerBlock_x, numThreadsPerBlock_y);
-
+    
     render<<<blocks, threads>>>(d_world, pixel_color, d_cam, d_rand_state);
     cudaDeviceSynchronize();
     stop = clock();
+
+    printf("Rnedingnineign\n");
 
     color* h_pixel_color = (color*)malloc(cam.image_width * cam.image_height * sizeof(color));
     cudaMemcpy(h_pixel_color, pixel_color, cam.image_width * cam.image_height * sizeof(color), cudaMemcpyDeviceToHost);
