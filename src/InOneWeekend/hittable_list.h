@@ -21,21 +21,21 @@ class hittable_list : public hittable {
     hittable* objects[1 + 22 * 22 + 3];               // We will use this array of 100 pointers
     int tail_index;
 
-    hittable_list() { 
+    __device__ __host__ hittable_list() { 
         tail_index = 0;
     }
-    hittable_list(hittable* object) { 
+    __device__ __host__ hittable_list(hittable* object) { 
         tail_index = 0;
         add(object); 
     }
 
-    void clear() { 
+    __device__ __host__ void clear() { 
         for (int i =0; i < tail_index; i++){
             objects[i] = nullptr;
         }
     }
 
-    void add(hittable* object) {
+    __device__ __host__ void add(hittable* object) {
         objects[tail_index] = object;
         // printf("Added this mf : %p", object);
         tail_index ++;
@@ -53,13 +53,13 @@ class hittable_list : public hittable {
 
         for (const auto& object: objects) {
             if (object->hit(r, interval(ray_t.min, closest_so_far), temp_rec)) {
-                printf("Here2");
+                // printf("Here2");
                 hit_anything = true;
                 closest_so_far = temp_rec.t;
                 rec = temp_rec;
             }
         }
-        printf("%d\n", hit_anything);
+        // printf("%d\n", hit_anything);
         return hit_anything;
     }
 };

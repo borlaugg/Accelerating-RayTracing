@@ -33,15 +33,18 @@ void check_cuda(cudaError_t result, char const *const func, const char *const fi
     }
 }
 
-__global__ void create_world(hittable_list* world, hittable** world_dummy) {
-    printf("Here\n");
-    printf("%d\n", world->tail_index);
+__global__ void create_world(hittable_list* world, hittable* sphere_list) {
+    // printf("Here\n");
+    // printf("%d\n", world->tail_index);
     // world_dummy[0];
-    printf("%p\n", world->objects[0]);
-    printf("%p\n", world_dummy[0]);
+    // printf("%p\n", world->objects[0]);
+    // printf("%p\n", world_dummy[0]);
+    world = new hittable_list();
+    // printf("%d\n", world->tail_index);
     for (int i =0; i < 488; i++){
-        world->objects[i] = world_dummy[i];
+        world->add(&sphere_list[i]);
     }
+    // printf("%d\n", world->tail_index);
     
 }
 
@@ -183,13 +186,21 @@ int main(int argc, char **argv) {
     cudaMemcpy(d_cam, &cam, sizeof(camera), cudaMemcpyHostToDevice);
     cudaMemcpy(d_world, &world, sizeof(world), cudaMemcpyHostToDevice);
 
-    hittable* d_list_of_spheres[488]; // We need to share this to GPU DRAM. And also each of the objects this list points to
-    cudaMalloc((void **)&d_list_of_spheres, 488*sizeof(hittable*));
+    // We want an array of pointers in the GPU Memory
+    hittable* d_list_of_spheres; // We need to share this to GPU DRAM. And also each of the objects this list points to
+    cudaMalloc((void **)&d_list_of_spheres, 488*sizeof(hittable));
     checkCudaErrors(cudaGetLastError());
 
     for (int i = 0; i < 488; i ++){
-        cudaMalloc((void **)&d_list_of_spheres[i], sizeof(hittable));
-        cudaMemcpy(d_list_of_spheres[i], world.objects[i], sizeof(hittable), cudaMemcpyHostToDevice);
+        // We will first allocate space for the objects in the GPU DRAM
+        // hittable* d_sphere;
+        // cudaMalloc((void **)&d_sphere, sizeof(hittable));
+
+        // Now we just make a copy of the object from Host to Device
+        cudaMemcpy(&d_list_of_spheres[i], world.objects[i], sizeof(hittable), cudaMemcpyHostToDevice);
+
+        // Now we update our array of pointers to reflect where the data was copied to
+        // cudaMemcpy(&d_list_of_spheres[i], &d_sphere, sizeof(hittable*), cudaMemcpyHostToDevice);
     }
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
