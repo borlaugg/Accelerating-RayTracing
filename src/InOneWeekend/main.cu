@@ -23,6 +23,19 @@
 
 #define checkCudaErrors(val) check_cuda( (val), #val, __FILE__, __LINE__ )
 
+long material_size(material* mat) {
+    if (metal* d = dynamic_cast<metal*>(mat)) {
+        return sizeof(metal);
+    } 
+    else if (lambertian* d = dynamic_cast<lambertian*>(mat)) {
+        return sizeof(lambertian);
+    } 
+    else if (dielectric* d = dynamic_cast<dielectric*>(mat)) {
+        return sizeof(dielectric);
+    }
+    return sizeof(*mat);
+}
+
 void check_cuda(cudaError_t result, char const *const func, const char *const file, int const line) {
     if (result) {
         std::cerr << "CUDA error = " << static_cast<unsigned int>(result) << " at " <<
@@ -33,19 +46,12 @@ void check_cuda(cudaError_t result, char const *const func, const char *const fi
     }
 }
 
-__global__ void create_world(hittable_list* world, hittable* sphere_list) {
-    // printf("Here\n");
-    // printf("%d\n", world->tail_index);
-    // world_dummy[0];
-    // printf("%p\n", world->objects[0]);
-    // printf("%p\n", world_dummy[0]);
-    world = new hittable_list();
-    // printf("%d\n", world->tail_index);
-    for (int i =0; i < 488; i++){
-        world->add(&sphere_list[i]);
+__global__ void create_world(hittable_list* world, sphere* sphere_list) {
+    printf("According to the list, the first object is at %p\n", &sphere_list[1]);
+    for (int i =0; i < world->size(); i++){
+        world->objects[i] = &sphere_list[i];
+        // printf("%c\n", ((world->objects[i])->mat)->type);
     }
-    // printf("%d\n", world->tail_index);
-    
 }
 
 __global__ void render_init(camera *cam, curandState *rand_state) {
@@ -63,7 +69,7 @@ __global__ void render_init(camera *cam, curandState *rand_state) {
 }
 
 // Code that will be run on the GPU
-__global__ void render(const hittable_list* world, color *pixel_color, camera *cam, curandState *rand_state) {
+__global__ void render(const hittable_list *world, camera *cam, curandState *rand_state, color *pixel_color) {
     int i = (blockIdx.x * blockDim.x + threadIdx.x);
     int j = (blockIdx.y * blockDim.y + threadIdx.y);
     int pixel_index = i + (*cam).image_width*j;
@@ -71,24 +77,17 @@ __global__ void render(const hittable_list* world, color *pixel_color, camera *c
     if (i >= (*cam).image_width || j >= (*cam).image_height)
         return;
 
-    // curand_init(1984 + pixel_index, 0, 0, &rand_state[pixel_index]);
-
     curandState local_rand_state = rand_state[pixel_index];
     
-    // printf("Samples: %d\n", (*cam).samples_per_pixel);
-
+    // ((hittable_list *)world)->balls();
+    
     for (int sample = 0; sample < (*cam).samples_per_pixel; sample++) {
         ray r = (*cam).get_ray(i, j, &local_rand_state);
         // printf("%d %p\n", (*cam).max_depth, &local_rand_state);
-        pixel_color[pixel_index] += (*cam).ray_color(r, (*cam).max_depth, *world, &local_rand_state);
-        printf("%f %f %f\n", pixel_color[pixel_index].x(), pixel_color[pixel_index].y(), pixel_color[pixel_index].z());
+        hugeBalls hi;
+        pixel_color[pixel_index] += (*cam).ray_color(r, (*cam).max_depth, world, &local_rand_state, &hi);
+        // printf("%f %f %f\n", pixel_color[pixel_index].x(), pixel_color[pixel_index].y(), pixel_color[pixel_index].z());
     }
-    // cudaError_t error = cudaGetLastError();
-    // printf("Error: %s \n", cudaGetErrorString(error));
-    
-    // __syncthreads();
-    
-    // write_color(std::cout, (*cam).pixel_samples_scale * pixel_color[pixel_index]);
 }
 
 
@@ -158,7 +157,7 @@ int main(int argc, char **argv) {
 
     cam.defocus_angle = 0.6;
     cam.focus_dist    = 10.0;
-
+    printf("world.size() = %d\n", world.size());
     printf("camera's image width = %d\n", cam.image_width);
     printf("Number of threads per block = %d, %d\n", numThreadsPerBlock_x, numThreadsPerBlock_y);
     
@@ -167,60 +166,71 @@ int main(int argc, char **argv) {
     cam.initialize();                                               // Need to call this once before we pass things to the GPU
     
     // CUDA doesn't have std::rand() therefore we need to define a set of seds
-    curandState *d_rand_state;
-    printf("%d\n",cam.image_height * cam.image_height);
+    void* d_rand_state;         // Abse we will start using pointers as just that -- pointers. We don't think of pointers of being of a specifc class
     cudaMalloc((void **)&d_rand_state, cam.image_height * cam.image_height * sizeof(curandState));
     
-    color* pixel_color;
+    void* pixel_color;                                  // Making it a pointer for the sake of my sanity.
     cudaMalloc((void **)&pixel_color, cam.image_width * cam.image_height * sizeof(color));        // We will allocate memory in the GPU for storing the pixel colors
     
     // Allocating appropriate space in GPU
     int num_entries = world.size();
-    // std::cout << num_entries << std::endl;
-    hittable_list *d_world;
-    cudaMalloc((void **)&d_world, sizeof(world));
-    camera *d_cam;
+    
+    void* d_cam;                // Making it a pointer for the sake of my sanity.
     cudaMalloc((void **)&d_cam, sizeof(camera));
-
     // Copying relevant data
-    cudaMemcpy(d_cam, &cam, sizeof(camera), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_world, &world, sizeof(world), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_cam, (void *)&cam, sizeof(camera), cudaMemcpyHostToDevice);
 
-    // We want an array of pointers in the GPU Memory
-    hittable* d_list_of_spheres; // We need to share this to GPU DRAM. And also each of the objects this list points to
-    cudaMalloc((void **)&d_list_of_spheres, 488*sizeof(hittable));
+    void* d_list_of_spheres; // It is just a pointer for now. It points to the memory location which contiguously contains all of the objects
+    cudaMalloc((void **)&d_list_of_spheres, world.size() * sizeof(sphere));
     checkCudaErrors(cudaGetLastError());
 
-    for (int i = 0; i < 488; i ++){
-        // We will first allocate space for the objects in the GPU DRAM
-        // hittable* d_sphere;
-        // cudaMalloc((void **)&d_sphere, sizeof(hittable));
+    // Sharing every sphere with the GPU. Note that we also need to send the material to GPU
+    void* material_ptr;
+    std::cout << "Size of lambertian = " << sizeof(lambertian) << std::endl;
+    std::cout << "Size of dielectric = " << sizeof(dielectric) << std::endl;
+    std::cout << "Size of metal = " << sizeof(metal) << std::endl;
+    std::cout << "Size of material = " << sizeof(material) << std::endl;
 
-        // Now we just make a copy of the object from Host to Device
-        cudaMemcpy(&d_list_of_spheres[i], world.objects[i], sizeof(hittable), cudaMemcpyHostToDevice);
-
-        // Now we update our array of pointers to reflect where the data was copied to
-        // cudaMemcpy(&d_list_of_spheres[i], &d_sphere, sizeof(hittable*), cudaMemcpyHostToDevice);
+    for (int i = 0; i < world.size(); i ++){        
+        // Let us first allocate space for the material that makes the sphere.
+        cudaMalloc((void **)&material_ptr, material_size((*world.objects[i]).mat));
+        // Let us now copy the material
+        cudaMemcpy(material_ptr, (*world.objects[i]).mat, material_size((*world.objects[i]).mat), cudaMemcpyHostToDevice);
+        // Let us update the sphere's pointer to material before we send it over
+        world.objects[i]->mat = (material *)material_ptr;
+        // Sending the material now fr
+        cudaMemcpy((void *)&(((sphere *)d_list_of_spheres)[i]), (void *)world.objects[i], sizeof(sphere), cudaMemcpyHostToDevice);
+        // Let us now update the pointer to the sphere in the world
+        world.objects[i] = &(((sphere *)d_list_of_spheres)[i]);
     }
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
-    
-    // hittable_list *h_world_why_not = (hittable_list *)malloc(sizeof(world));
-    // memcpy(h_world_why_not, &world, sizeof(world));
 
-    // printf("%d\n", h_world_why_not->tail_index);
+    // Now we will share the object of class hittable_list with the GPU
+    void* d_world;
+    cudaMalloc((void **)&d_world, sizeof(hittable_list));
+    cudaMemcpy(d_world, &world, sizeof(hittable_list), cudaMemcpyHostToDevice);
+    checkCudaErrors(cudaGetLastError());
+    checkCudaErrors(cudaDeviceSynchronize());
+    // Created a world on the GPU and we even have the location of that as a pointer
+
+    std::cout << "No problems yet\n";
+    // This will update the world object in the GPU to accurately point to the actual spheres
+    create_world<<<1, 1>>>((hittable_list *)d_world, (sphere *)d_list_of_spheres);         // The sole job of this is to create the world using the pointer to the list and the update the d_world pointer accordingly
+    checkCudaErrors(cudaGetLastError());
+    checkCudaErrors(cudaDeviceSynchronize());
 
     dim3 blocks(cam.image_height/numThreadsPerBlock_x + 1,cam.image_width/numThreadsPerBlock_y + 1);
     dim3 threads(numThreadsPerBlock_x, numThreadsPerBlock_y);
     
-    create_world<<<1, 1>>>(d_world, d_list_of_spheres);
+    render_init<<<blocks, threads>>>((camera *)d_cam, (curandState *)d_rand_state);     // We are passing pointers to the camera object, rand_state and world -- all of these are already in the GPU memory
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
-    // std::cout << world.tail_index << std::endl;
-    render_init<<<blocks, threads>>>(d_cam, d_rand_state);
-    checkCudaErrors(cudaGetLastError());
-    checkCudaErrors(cudaDeviceSynchronize());
-    render<<<blocks, threads>>>(d_world, pixel_color, d_cam, d_rand_state);
+
+    render<<<1, 1>>>((hittable_list *)d_world, 
+                                (camera *)d_cam, 
+                                (curandState *)d_rand_state, 
+                                (color *)pixel_color);
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
     stop = clock();

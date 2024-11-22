@@ -102,22 +102,70 @@ class camera {
         return center + (p[0] * defocus_disk_u) + (p[1] * defocus_disk_v);
     }
 
-    __device__ color ray_color(const ray& r, int depth, const hittable_list world, curandState* state) const {
+    __device__ color ray_color(const ray& r, int depth, const hittable_list* world, curandState* state, bigBalls* hello) const {
         // If we've exceeded the ray bounce limit, no more light is gathered.
         if (depth <= 0)
             return color(0,0,0);
+        
+        printf("Depth = %d\n", depth);
 
         hit_record rec;
-        // printf("%p", world.objects[0]);
-        world.hit(r, interval(0.001, infinity), rec);
-        printf("here");
-        if (world.hit(r, interval(0.001, infinity), rec)) {
-            printf("Here2");
+        
+        if (((hittable_list *)world)->hit_world(r, interval(0.001, infinity), rec)) {
             ray scattered;
             color attenuation;
-            if (rec.mat->scatter(r, rec, attenuation, scattered, state))
-                return attenuation * ray_color(scattered, depth-1, world, state);
-            return color(0,0,0);
+            // printf("Here2\n");
+
+            hello->balls();
+
+            printf("%c\n", rec.mat->type);
+            switch(rec.mat->type){
+                case 'l':
+                    auto scatter_direction = rec.normal + random_unit_vector(state);
+                    // Catch degenerate scatter direction
+                    if (scatter_direction.near_zero())
+                        scatter_direction = rec.normal;
+                    scattered = ray(rec.p, scatter_direction);
+                    attenuation = ((lambertian *)rec.mat)->albedo;
+                    printf("Deewani hua\n");
+                    return attenuation * ray_color(scattered, depth-1, world, state, hello);
+                    break;
+                
+                case 'm':
+                    vec3 reflected = reflect(r.direction(), rec.normal);
+                    reflected = unit_vector(reflected) + (((metal *)rec.mat)->fuzz * random_unit_vector(state));
+                    scattered = ray(rec.p, reflected);
+                    attenuation = ((metal *)rec.mat)->albedo;
+                    if (dot(scattered.direction(), rec.normal) > 0)
+                        return attenuation * ray_color(scattered, depth-1, world, state, hello);
+                    return color(0,0,0);
+                    break;
+                case 'd':
+                    attenuation = color(1.0, 1.0, 1.0);
+                    double ri = rec.front_face ? (1.0/((dielectric *)rec.mat)->refraction_index) : ((dielectric *)rec.mat)->refraction_index;
+
+                    vec3 unit_direction = unit_vector(r.direction());
+                    double cos_theta = std::fmin(dot(-unit_direction, rec.normal), 1.0);
+                    double sin_theta = std::sqrt(1.0 - cos_theta*cos_theta);
+
+                    bool cannot_refract = ri * sin_theta > 1.0;
+                    vec3 direction;
+
+                    if (cannot_refract || ((dielectric *)rec.mat)->reflectance(cos_theta, ri) > random_double(state))
+                        direction = reflect(unit_direction, rec.normal);
+                    else
+                        direction = refract(unit_direction, rec.normal, ri);
+
+                    scattered = ray(rec.p, direction);
+                    return attenuation * ray_color(scattered, depth-1, world, state, hello);
+                    break;
+                default:
+                    return color(0,0,0);
+            }
+            
+            // if (((lambertian *)rec.mat)->scatter(r, rec, attenuation, scattered, state))
+            //     return attenuation * ray_color(scattered, depth-1, world, state, hello);
+            // return color(0,0,0);
         }
 
         vec3 unit_direction = unit_vector(r.direction());

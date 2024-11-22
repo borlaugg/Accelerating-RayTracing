@@ -14,19 +14,20 @@
 #include "hittable.h"
 
 
-class sphere : public hittable {
+class sphere {
   public:
     sphere(const point3& center, double radius, material* mat)
       : center(center), radius(std::fmax(0,radius)), mat(mat) {}
 
-    __device__ bool hit(const ray& r, interval ray_t, hit_record& rec) const override {
-        vec3 oc = center - r.origin();
+    __device__ __host__ bool hit(const ray& r, interval ray_t, hit_record& rec) const {
+      vec3 oc = center - r.origin();
         auto a = r.direction().length_squared();
         auto h = dot(r.direction(), oc);
+      // printf("Last itme\n");
         auto c = oc.length_squared() - radius*radius;
-
         auto discriminant = h*h - a*c;
         if (discriminant < 0)
+            // printf("sorry rahega. Get discrimnated\n");
             return false;
 
         auto sqrtd = std::sqrt(discriminant);
@@ -36,6 +37,7 @@ class sphere : public hittable {
         if (!ray_t.surrounds(root)) {
             root = (h + sqrtd) / a;
             if (!ray_t.surrounds(root))
+                // printf("sorry rahega. Chakraview\n");
                 return false;
         }
 
@@ -44,11 +46,10 @@ class sphere : public hittable {
         vec3 outward_normal = (rec.p - center) / radius;
         rec.set_face_normal(r, outward_normal);
         rec.mat = mat;
-
         return true;
     }
 
-  private:
+  public:
     point3 center;
     double radius;
     material* mat;

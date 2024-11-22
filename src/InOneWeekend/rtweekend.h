@@ -26,7 +26,7 @@
 
 // Constants
 
-const double infinity = INFINITY;       // Changed it from std::infinity
+const double infinity = (double)INFINITY;       // Changed it from std::infinity
 const double pi = 3.1415926535897932385;
 
 

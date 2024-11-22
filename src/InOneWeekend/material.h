@@ -13,22 +13,46 @@
 
 #include "hittable.h"
 
+class bigBalls {
+  public:
+    __device__ virtual void balls(){
+      printf("Hu bhai. Don't worry\n");
+    }
+};
+
+class hugeBalls : public bigBalls {
+  public:
+    __device__ void balls() override {
+      printf("Pari hu main. Don't worry\n");
+    }
+};
+
 
 class material {
   public:
+    char type;
     virtual ~material() = default;
 
     __device__ virtual bool scatter(
         const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered, curandState* state
     ) const {
+      printf("I wish I was in mat\n");
         return false;
+    }
+
+    __device__ virtual void balls(){
+      printf("Virtual hu bhai. Don't worry\n");
+    }
+
+    __device__ void real_balls(){
+      printf("Asli hu bhai. Don't worry\n");
     }
 };
 
 
 class lambertian : public material {
   public:
-    lambertian(const color& albedo) : albedo(albedo) {}
+    lambertian(const color& albedo) : albedo(albedo) {type = 'l';}
 
     __device__ bool scatter(const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered, curandState* state)
     const override {
@@ -43,14 +67,17 @@ class lambertian : public material {
         return true;
     }
 
-  private:
+  __device__ void balls() override {
+      printf("Pari hu main. Don't worry\n");
+    }
+
     color albedo;
 };
 
 
 class metal : public material {
   public:
-    metal(const color& albedo, double fuzz) : albedo(albedo), fuzz(fuzz < 1 ? fuzz : 1) {}
+    metal(const color& albedo, double fuzz) : albedo(albedo), fuzz(fuzz < 1 ? fuzz : 1) {type = 'm';}
 
     __device__ bool scatter(const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered, curandState* state)
     const override {
@@ -61,7 +88,10 @@ class metal : public material {
         return (dot(scattered.direction(), rec.normal) > 0);
     }
 
-  private:
+    __device__ void balls() override {
+      printf("Pari hu main. Don't worry\n");
+    }
+
     color albedo;
     double fuzz;
 };
@@ -69,7 +99,7 @@ class metal : public material {
 
 class dielectric : public material {
   public:
-    dielectric(double refraction_index) : refraction_index(refraction_index) {}
+    dielectric(double refraction_index) : refraction_index(refraction_index) {type = 'd';}
 
     __device__ bool scatter(const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered, curandState* state)
     const override {
@@ -92,12 +122,15 @@ class dielectric : public material {
         return true;
     }
 
-  private:
+    __device__ void balls() override {
+      printf("Pari hu main. Don't worry\n");
+    }
+
     // Refractive index in vacuum or air, or the ratio of the material's refractive index over
     // the refractive index of the enclosing media
     double refraction_index;
 
-    __device__ __host__ static double reflectance(double cosine, double refraction_index) {
+    __device__ static double reflectance(double cosine, double refraction_index) {
         // Use Schlick's approximation for reflectance.
         auto r0 = (1 - refraction_index) / (1 + refraction_index);
         r0 = r0*r0;
