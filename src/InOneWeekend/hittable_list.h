@@ -76,13 +76,11 @@ class hittable_list {
         
         for (const auto& object: objects) {
             if (object->hit(r, interval(ray_t.min, closest_so_far), temp_rec)) {
-                printf("Here for partying\n");
                 hit_anything = true;
                 closest_so_far = temp_rec.t;
                 rec = temp_rec;
             }
         }
-        printf("Did we hit anything? %d\n", hit_anything);
         return hit_anything;
     }
 

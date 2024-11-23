@@ -102,12 +102,12 @@ class camera {
         return center + (p[0] * defocus_disk_u) + (p[1] * defocus_disk_v);
     }
 
-    __device__ color ray_color(const ray& r, int depth, const hittable_list* world, curandState* state, bigBalls* hello) const {
+    __device__ color ray_color(const ray& r, int depth, const hittable_list* world, curandState* state) const {
         // If we've exceeded the ray bounce limit, no more light is gathered.
         if (depth <= 0)
             return color(0,0,0);
         
-        printf("Depth = %d\n", depth);
+        // printf("Depth = %d\n", depth);
 
         hit_record rec;
         
@@ -116,9 +116,7 @@ class camera {
             color attenuation;
             // printf("Here2\n");
 
-            hello->balls();
-
-            printf("%c\n", rec.mat->type);
+            // printf("%c\n", rec.mat->type);
             switch(rec.mat->type){
                 case 'l':
                     auto scatter_direction = rec.normal + random_unit_vector(state);
@@ -127,8 +125,8 @@ class camera {
                         scatter_direction = rec.normal;
                     scattered = ray(rec.p, scatter_direction);
                     attenuation = ((lambertian *)rec.mat)->albedo;
-                    printf("Deewani hua\n");
-                    return attenuation * ray_color(scattered, depth-1, world, state, hello);
+                    // printf("Deewani hua\n");
+                    return attenuation * ray_color(scattered, depth-1, world, state);
                     break;
                 
                 case 'm':
@@ -137,7 +135,7 @@ class camera {
                     scattered = ray(rec.p, reflected);
                     attenuation = ((metal *)rec.mat)->albedo;
                     if (dot(scattered.direction(), rec.normal) > 0)
-                        return attenuation * ray_color(scattered, depth-1, world, state, hello);
+                        return attenuation * ray_color(scattered, depth-1, world, state);
                     return color(0,0,0);
                     break;
                 case 'd':
@@ -157,7 +155,7 @@ class camera {
                         direction = refract(unit_direction, rec.normal, ri);
 
                     scattered = ray(rec.p, direction);
-                    return attenuation * ray_color(scattered, depth-1, world, state, hello);
+                    return attenuation * ray_color(scattered, depth-1, world, state);
                     break;
                 default:
                     return color(0,0,0);

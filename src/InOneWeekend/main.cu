@@ -47,7 +47,7 @@ void check_cuda(cudaError_t result, char const *const func, const char *const fi
 }
 
 __global__ void create_world(hittable_list* world, sphere* sphere_list) {
-    printf("According to the list, the first object is at %p\n", &sphere_list[1]);
+    // printf("According to the list, the first object is at %p\n", &sphere_list[1]);
     for (int i =0; i < world->size(); i++){
         world->objects[i] = &sphere_list[i];
         // printf("%c\n", ((world->objects[i])->mat)->type);
@@ -83,9 +83,9 @@ __global__ void render(const hittable_list *world, camera *cam, curandState *ran
     
     for (int sample = 0; sample < (*cam).samples_per_pixel; sample++) {
         ray r = (*cam).get_ray(i, j, &local_rand_state);
+        // printf("Post Malone \n");
         // printf("%d %p\n", (*cam).max_depth, &local_rand_state);
-        hugeBalls hi;
-        pixel_color[pixel_index] += (*cam).ray_color(r, (*cam).max_depth, world, &local_rand_state, &hi);
+        pixel_color[pixel_index] += (*cam).ray_color(r, (*cam).max_depth, world, &local_rand_state);
         // printf("%f %f %f\n", pixel_color[pixel_index].x(), pixel_color[pixel_index].y(), pixel_color[pixel_index].z());
     }
 }
@@ -148,7 +148,7 @@ int main(int argc, char **argv) {
     cam.aspect_ratio      = 16.0 / 9.0;
     cam.image_width       = atoi(argv[1]);
     cam.samples_per_pixel = 10;
-    cam.max_depth         = 20;
+    cam.max_depth         = 2;
 
     cam.vfov     = 20;
     cam.lookfrom = point3(13,2,3);
@@ -157,9 +157,9 @@ int main(int argc, char **argv) {
 
     cam.defocus_angle = 0.6;
     cam.focus_dist    = 10.0;
-    printf("world.size() = %d\n", world.size());
-    printf("camera's image width = %d\n", cam.image_width);
-    printf("Number of threads per block = %d, %d\n", numThreadsPerBlock_x, numThreadsPerBlock_y);
+    // printf("world.size() = %d\n", world.size());
+    // printf("camera's image width = %d\n", cam.image_width);
+    // printf("Number of threads per block = %d, %d\n", numThreadsPerBlock_x, numThreadsPerBlock_y);
     
     clock_t start, stop;
     start = clock();
@@ -227,7 +227,7 @@ int main(int argc, char **argv) {
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
 
-    render<<<1, 1>>>((hittable_list *)d_world, 
+    render<<<blocks, threads>>>((hittable_list *)d_world, 
                                 (camera *)d_cam, 
                                 (curandState *)d_rand_state, 
                                 (color *)pixel_color);
