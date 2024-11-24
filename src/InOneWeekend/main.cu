@@ -152,11 +152,11 @@ int main(int argc, char **argv) {
     }
     
     double aspect_ratio = 16.0 / 9.0;
-    int nx = argv[1];
+    int nx = atoi(argv[1]);
     int ny = int(nx / aspect_ratio);
     int ns = 10;
-    int tx = argv[2];
-    int ty = argv[3];
+    int tx = atoi(argv[2]);
+    int ty = atoi(argv[3]);
 
     int num_pixels = nx*ny;
     size_t fb_size = num_pixels*sizeof(vec3);
