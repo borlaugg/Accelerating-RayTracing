@@ -13,13 +13,13 @@
 
 #include "hittable.h"
 
-
 class sphere {
   public:
     sphere(const point3& center, double radius, material* mat)
       : center(center), radius(std::fmax(0,radius)), mat(mat) {}
 
     __device__ __host__ bool hit(const ray& r, interval ray_t, hit_record& rec) const {
+      // printf("here\n");
       vec3 oc = center - r.origin();
         auto a = r.direction().length_squared();
         auto h = dot(r.direction(), oc);

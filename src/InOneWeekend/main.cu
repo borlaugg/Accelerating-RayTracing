@@ -47,10 +47,8 @@ void check_cuda(cudaError_t result, char const *const func, const char *const fi
 }
 
 __global__ void create_world(hittable_list* world, sphere* sphere_list) {
-    // printf("According to the list, the first object is at %p\n", &sphere_list[1]);
     for (int i =0; i < world->size(); i++){
         world->objects[i] = &sphere_list[i];
-        // printf("%c\n", ((world->objects[i])->mat)->type);
     }
 }
 
@@ -59,27 +57,37 @@ __global__ void render_init(camera *cam, curandState *rand_state) {
     int j = (blockIdx.y * blockDim.y + threadIdx.y);
     int pixel_index = i + (*cam).image_width*j;
 
-    // printf("%d\n", pixel_index);
-
     if (i >= (*cam).image_width || j >= (*cam).image_height)
         return;
 
     curand_init(1947 + pixel_index, 0, 0, &rand_state[pixel_index]);
-    // printf("Done");
 }
 
-__device__ color ray_color(const ray& r, const hittable_list* world, curandState* state) {
+__device__ bool hit_world(const hittable_list* world, ray& r, interval ray_t, hit_record& rec) {
+    hit_record temp_rec;
+    bool hit_anything = false;
+    auto closest_so_far = ray_t.max;
+    for (const auto& object: world->objects) {
+        if (object->hit(r, interval(ray_t.min, closest_so_far), temp_rec)) {
+            hit_anything = true;
+            closest_so_far = temp_rec.t;
+            rec = temp_rec;
+        }
+    }
+    return hit_anything;
+}
+
+__device__ vec3 ray_color(const ray& r, const hittable_list* world, curandState* state) {
 
     ray cur_ray = r;
     vec3 cur_attenuation = vec3(1.0,1.0,1.0);
 
-    for(int i = 0; i < 10; i++) {
+    for(int i = 0; i < 50; i++) {
+        printf("%d\n", i);
         hit_record rec;
-        if (((hittable_list *)world)->hit_world(cur_ray, interval(0.001, infinity), rec)) {
-
+        if (hit_world(world, cur_ray, interval(0.001, infinity), rec)) {
             ray scattered;
             vec3 attenuation;
-
             if(rec.mat->scatter(cur_ray, rec, attenuation, scattered, state)) {
                 cur_attenuation *= attenuation;
                 cur_ray = scattered;
@@ -99,7 +107,7 @@ __device__ color ray_color(const ray& r, const hittable_list* world, curandState
 }
 
 // Code that will be run on the GPU
-__global__ void render(const hittable_list *world, camera *cam, curandState *rand_state, color *pixel_color) {
+__global__ void render(const hittable_list *world, camera *cam, curandState *randState, color *pixel_color) {
     int i = (blockIdx.x * blockDim.x + threadIdx.x);
     int j = (blockIdx.y * blockDim.y + threadIdx.y);
     int pixel_index = i + (*cam).image_width*j;
@@ -107,17 +115,13 @@ __global__ void render(const hittable_list *world, camera *cam, curandState *ran
     if (i >= (*cam).image_width || j >= (*cam).image_height)
         return;
 
-    curandState local_rand_state = rand_state[pixel_index];
-    
-    // ((hittable_list *)world)->balls();
+    curandState local_randState = randState[pixel_index];
     
     for (int sample = 0; sample < (*cam).samples_per_pixel; sample++) {
-        ray r = (*cam).get_ray(i, j, &local_rand_state);
-        // printf("Post Malone \n");
-        // printf("%d %p\n", (*cam).max_depth, &local_rand_state);
-        // pixel_color[pixel_index] += ray_color(r, world, &local_rand_state);
-        pixel_color[pixel_index] += (*cam).ray_color(r, (*cam).max_depth, world, &local_rand_state);
-        // printf("%f %f %f\n", pixel_color[pixel_index].x(), pixel_color[pixel_index].y(), pixel_color[pixel_index].z());
+        ray r = (*cam).get_ray(i, j, &local_randState);
+        // printf("%d %p\n", (*cam).max_depth, &local_randState);
+        pixel_color[pixel_index] += ray_color(r, world, &local_randState);
+        // pixel_color[pixel_index] += (*cam).ray_color(r, (*cam).max_depth, world, &local_randState);
     }
 }
 
@@ -197,11 +201,11 @@ int main(int argc, char **argv) {
     cam.initialize();                                               // Need to call this once before we pass things to the GPU
     
     // CUDA doesn't have std::rand() therefore we need to define a set of seds
-    void* d_rand_state;         // Abse we will start using pointers as just that -- pointers. We don't think of pointers of being of a specifc class
-    cudaMalloc((void **)&d_rand_state, cam.image_width * cam.image_height * sizeof(curandState));
+    void* d_randState;         // Abse we will start using pointers as just that -- pointers. We don't think of pointers of being of a specifc class
+    cudaMalloc((void **)&d_randState, cam.image_width * cam.image_height * sizeof(curandState));
     
-    void* pixel_color;                                  // Making it a pointer for the sake of my sanity.
-    cudaMalloc((void **)&pixel_color, cam.image_width * cam.image_height * sizeof(color));        // We will allocate memory in the GPU for storing the pixel colors
+    void* d_pixel_color;                                  // Making it a pointer for the sake of my sanity.
+    cudaMalloc((void **)&d_pixel_color, cam.image_width * cam.image_height * sizeof(color));        // We will allocate memory in the GPU for storing the pixel colors
     
     // Allocating appropriate space in GPU
     int num_entries = world.size();
@@ -245,7 +249,6 @@ int main(int argc, char **argv) {
     checkCudaErrors(cudaDeviceSynchronize());
     // Created a world on the GPU and we even have the location of that as a pointer
 
-    // std::cout << "No problems yet\n";
     // This will update the world object in the GPU to accurately point to the actual spheres
     // create_world<<<1, 1>>>((hittable_list *)d_world, (sphere *)d_list_of_spheres);         // The sole job of this is to create the world using the pointer to the list and the update the d_world pointer accordingly
     checkCudaErrors(cudaGetLastError());
@@ -254,22 +257,20 @@ int main(int argc, char **argv) {
     dim3 blocks(cam.image_height/numThreadsPerBlock_x + 1,cam.image_width/numThreadsPerBlock_y + 1);
     dim3 threads(numThreadsPerBlock_x, numThreadsPerBlock_y);
     
-    render_init<<<blocks, threads>>>((camera *)d_cam, (curandState *)d_rand_state);     // We are passing pointers to the camera object, rand_state and world -- all of these are already in the GPU memory
+    render_init<<<blocks, threads>>>((camera *)d_cam, (curandState *)d_randState);     // We are passing pointers to the camera object, rand_state and world -- all of these are already in the GPU memory
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
 
     render<<<blocks, threads>>>((hittable_list *)d_world, 
                                 (camera *)d_cam, 
-                                (curandState *)d_rand_state, 
-                                (color *)pixel_color);
+                                (curandState *)d_randState, 
+                                (color *)d_pixel_color);
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
     stop = clock();
 
-    // printf("Rnedingnineign\n");
-
     color* h_pixel_color = (color*)malloc(cam.image_width * cam.image_height * sizeof(color));
-    cudaMemcpy(h_pixel_color, pixel_color, cam.image_width * cam.image_height * sizeof(color), cudaMemcpyDeviceToHost);
+    cudaMemcpy(h_pixel_color, d_pixel_color, cam.image_width * cam.image_height * sizeof(color), cudaMemcpyDeviceToHost);
     for (int j = 0 ; j < cam.image_height; j++){
         for (int i = 0 ; i < cam.image_width; i++){
             write_color(std::cout, cam.pixel_samples_scale * h_pixel_color[i + cam.image_width*j]);
@@ -277,6 +278,6 @@ int main(int argc, char **argv) {
     }
 
     double timer_seconds = ((double)(stop - start)) / CLOCKS_PER_SEC;
-    std::cerr << timer_seconds << "\n";
+    // std::cerr << timer_seconds << "\n";
 
 }

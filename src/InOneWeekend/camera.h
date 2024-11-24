@@ -119,6 +119,7 @@ class camera {
             // printf("%c\n", rec.mat->type);
             switch(rec.mat->type){
                 case 'l':
+                {
                     auto scatter_direction = rec.normal + random_unit_vector(state);
                     // Catch degenerate scatter direction
                     if (scatter_direction.near_zero())
@@ -128,8 +129,9 @@ class camera {
                     // printf("Deewani hua\n");
                     return attenuation * ray_color(scattered, depth-1, world, state);
                     break;
-                
+                }
                 case 'm':
+                {
                     vec3 reflected = reflect(r.direction(), rec.normal);
                     reflected = unit_vector(reflected) + (((metal *)rec.mat)->fuzz * random_unit_vector(state));
                     scattered = ray(rec.p, reflected);
@@ -138,7 +140,9 @@ class camera {
                         return attenuation * ray_color(scattered, depth-1, world, state);
                     return color(0,0,0);
                     break;
+                }
                 case 'd':
+                {
                     attenuation = color(1.0, 1.0, 1.0);
                     double ri = rec.front_face ? (1.0/((dielectric *)rec.mat)->refraction_index) : ((dielectric *)rec.mat)->refraction_index;
 
@@ -157,8 +161,11 @@ class camera {
                     scattered = ray(rec.p, direction);
                     return attenuation * ray_color(scattered, depth-1, world, state);
                     break;
+                }
                 default:
+                {
                     return color(0,0,0);
+                }
             }
             
             // if (((lambertian *)rec.mat)->scatter(r, rec, attenuation, scattered, state))
