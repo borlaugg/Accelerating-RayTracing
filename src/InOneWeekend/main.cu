@@ -64,8 +64,38 @@ __global__ void render_init(camera *cam, curandState *rand_state) {
     if (i >= (*cam).image_width || j >= (*cam).image_height)
         return;
 
-    curand_init(1984 + pixel_index, 0, 0, &rand_state[pixel_index]);
+    curand_init(1947 + pixel_index, 0, 0, &rand_state[pixel_index]);
     // printf("Done");
+}
+
+__device__ color ray_color(const ray& r, const hittable_list* world, curandState* state) {
+
+    ray cur_ray = r;
+    vec3 cur_attenuation = vec3(1.0,1.0,1.0);
+
+    for(int i = 0; i < 10; i++) {
+        hit_record rec;
+        if (((hittable_list *)world)->hit_world(cur_ray, interval(0.001, infinity), rec)) {
+
+            ray scattered;
+            vec3 attenuation;
+
+            if(rec.mat->scatter(cur_ray, rec, attenuation, scattered, state)) {
+                cur_attenuation *= attenuation;
+                cur_ray = scattered;
+            }
+            else {
+                return vec3(0.0,0.0,0.0);
+            }
+        }
+        else {
+            vec3 unit_direction = unit_vector(cur_ray.direction());
+            float t = 0.5f*(unit_direction.y() + 1.0f);
+            vec3 c = (1.0f-t)*vec3(1.0, 1.0, 1.0) + t*vec3(0.5, 0.7, 1.0);
+            return cur_attenuation * c;
+        }
+    }
+    return vec3(0.0,0.0,0.0); // exceeded recursion
 }
 
 // Code that will be run on the GPU
@@ -85,6 +115,7 @@ __global__ void render(const hittable_list *world, camera *cam, curandState *ran
         ray r = (*cam).get_ray(i, j, &local_rand_state);
         // printf("Post Malone \n");
         // printf("%d %p\n", (*cam).max_depth, &local_rand_state);
+        // pixel_color[pixel_index] += ray_color(r, world, &local_rand_state);
         pixel_color[pixel_index] += (*cam).ray_color(r, (*cam).max_depth, world, &local_rand_state);
         // printf("%f %f %f\n", pixel_color[pixel_index].x(), pixel_color[pixel_index].y(), pixel_color[pixel_index].z());
     }
@@ -167,7 +198,7 @@ int main(int argc, char **argv) {
     
     // CUDA doesn't have std::rand() therefore we need to define a set of seds
     void* d_rand_state;         // Abse we will start using pointers as just that -- pointers. We don't think of pointers of being of a specifc class
-    cudaMalloc((void **)&d_rand_state, cam.image_height * cam.image_height * sizeof(curandState));
+    cudaMalloc((void **)&d_rand_state, cam.image_width * cam.image_height * sizeof(curandState));
     
     void* pixel_color;                                  // Making it a pointer for the sake of my sanity.
     cudaMalloc((void **)&pixel_color, cam.image_width * cam.image_height * sizeof(color));        // We will allocate memory in the GPU for storing the pixel colors
@@ -186,10 +217,10 @@ int main(int argc, char **argv) {
 
     // Sharing every sphere with the GPU. Note that we also need to send the material to GPU
     void* material_ptr;
-    std::cout << "Size of lambertian = " << sizeof(lambertian) << std::endl;
-    std::cout << "Size of dielectric = " << sizeof(dielectric) << std::endl;
-    std::cout << "Size of metal = " << sizeof(metal) << std::endl;
-    std::cout << "Size of material = " << sizeof(material) << std::endl;
+    // std::cout << "Size of lambertian = " << sizeof(lambertian) << std::endl;
+    // std::cout << "Size of dielectric = " << sizeof(dielectric) << std::endl;
+    // std::cout << "Size of metal = " << sizeof(metal) << std::endl;
+    // std::cout << "Size of material = " << sizeof(material) << std::endl;
 
     for (int i = 0; i < world.size(); i ++){        
         // Let us first allocate space for the material that makes the sphere.
@@ -214,9 +245,9 @@ int main(int argc, char **argv) {
     checkCudaErrors(cudaDeviceSynchronize());
     // Created a world on the GPU and we even have the location of that as a pointer
 
-    std::cout << "No problems yet\n";
+    // std::cout << "No problems yet\n";
     // This will update the world object in the GPU to accurately point to the actual spheres
-    create_world<<<1, 1>>>((hittable_list *)d_world, (sphere *)d_list_of_spheres);         // The sole job of this is to create the world using the pointer to the list and the update the d_world pointer accordingly
+    // create_world<<<1, 1>>>((hittable_list *)d_world, (sphere *)d_list_of_spheres);         // The sole job of this is to create the world using the pointer to the list and the update the d_world pointer accordingly
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
 
